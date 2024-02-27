@@ -1,12 +1,14 @@
 import numpy as np
 import cv2 as cv
 import glob
-from os.path import join
+from os.path import join, basename
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import re
 
 def load_calibration_parameters(calib_dir):
     """
-    Load saved calibration parameters from the specified directory, ensuring double precision format.
+    Load saved calibration parameters from the specified directory.
     """
     cameraMatrixL = np.loadtxt(join(calib_dir, 'cameraMatrixL.txt'), dtype=np.float64)
     distL = np.loadtxt(join(calib_dir, 'distL.txt'), dtype=np.float64)
@@ -22,7 +24,7 @@ def process_images(left_img_path, right_img_path, calibration_data):
     """
     Process a pair of images to compute the disparity and depth maps.
     """
-    cameraMatrixL, distL, cameraMatrixR, distR, R, T, Q = calibration_data
+    cameraMatrixL, distL, cameraMatrixR, distR, _, _, Q = calibration_data
 
     # Load images
     imgL = cv.imread(left_img_path, cv.IMREAD_GRAYSCALE)
@@ -55,46 +57,55 @@ def process_images(left_img_path, right_img_path, calibration_data):
     # Compute the disparity map
     disparity = stereo.compute(imgL_remapped, imgR_remapped).astype(np.float32) / 16.0
 
-    # Compute the depth map
-    depth_map = cv.reprojectImageTo3D(disparity, Q)
+    return disparity
 
-    return disparity, depth_map
+def normalize_and_reverse_depth(depth_map):
+    """Normalize and reverse depth values so that closer objects have higher values."""
+    depth_valid = depth_map[depth_map > 0]  # Exclude non-positive values
+    depth_normalized = (depth_map - np.min(depth_valid)) / (np.max(depth_valid) - np.min(depth_valid))
+    depth_normalized = 1 - depth_normalized  # Reverse depth
+    depth_normalized[depth_map <= 0] = 0  # Keep invalid depth as 0
+    return depth_normalized
 
-def display_depth_and_disparity(left_images_dir, right_images_dir, calib_data, delay=0.1):
-    """
-    Automatically display depth and disparity maps side by side for each pair of stereo images.
-    """
-    left_images = sorted(glob.glob(join(left_images_dir, '*.png')))
-    right_images = sorted(glob.glob(join(right_images_dir, '*.png')))
 
-    plt.figure(figsize=(10, 5))
+def sort_numerically(file_paths):
+    """Sort file paths based on the numerical value in their names."""
+    return sorted(file_paths, key=lambda x: int(re.search(r'\d+', basename(x)).group()))
+
+def display_3d_depth_map(left_images_dir, right_images_dir, calib_data):
+    fig = plt.figure(figsize=(10, 7))
+    ax = fig.add_subplot(111, projection='3d')
+
+    left_images = sort_numerically(glob.glob(join(left_images_dir, '*.png')))
+    right_images = sort_numerically(glob.glob(join(right_images_dir, '*.png')))
 
     for left_img_path, right_img_path in zip(left_images, right_images):
-        disparity, depth_map = process_images(left_img_path, right_img_path, calib_data)
+        disparity = process_images(left_img_path, right_img_path, calib_data)
+        depth = normalize_and_reverse_depth(disparity)  # Use the adjusted normalization
+        
+        h, w = depth.shape
+        X, Y = np.meshgrid(np.arange(w), np.arange(h))
+        X, Y, depth = X.flatten(), Y.flatten(), depth.flatten()
 
-        plt.subplot(1, 2, 1)
-        plt.imshow(disparity, cmap='magma')
-        plt.title('Disparity Map')
-        plt.colorbar()
-
-        plt.subplot(1, 2, 2)
-        plt.imshow(depth_map[:, :, 2], cmap='jet')  # Displaying depth; consider only one channel
-        plt.title('Depth Map')
-        plt.colorbar()
-
-        plt.pause(delay)
-        plt.clf()
-
+        mask = depth > 0  # Filtering out zero depth
+        ax.clear()  # Clear previous data
+        ax.scatter(X[mask], Y[mask], depth[mask], c=depth[mask], cmap='viridis', marker='.')
+        
+        ax.set_title('Normalized and Corrected 3D Depth Map')
+        ax.set_xlabel('X axis')
+        ax.set_ylabel('Y axis')
+        ax.set_zlabel('Depth (Normalized and Reversed)')
+        ax.view_init(elev=287, azim=270)  # Adjusted view angles
+        
+        plt.pause(0.1)  # Adjust the pause if necessary to achieve the desired FPS
     plt.close()
 
 def main():
     calib_dir = 'Calibration_Files'
-    calib_data = load_calibration_parameters(calib_dir)
-    
     left_images_dir = 'output/L'
     right_images_dir = 'output/R'
-    
-    display_depth_and_disparity(left_images_dir, right_images_dir, calib_data, delay=0.1)
+    calib_data = load_calibration_parameters(calib_dir)
+    display_3d_depth_map(left_images_dir, right_images_dir, calib_data)
 
 if __name__ == '__main__':
     main()
