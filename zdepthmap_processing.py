@@ -62,6 +62,19 @@ class DepthPostProcessor(Depth):
 
         return new_depth_map
 
+    def calculate_2d_top_down_occupancy_map(self, depth):
+        # Assume depth is already filtered to include only floor-relevant points
+        # Initialize the 2D occupancy map with all free spaces
+        occupancy_map = np.full((depth.shape[0], depth.shape[1]), 255, dtype=np.uint8)
+
+        for x in range(depth.shape[1]):  # Iterate through each column (X-axis)
+            for z in range(depth.shape[0]):  # Iterate from the top of the column downwards
+                if depth[z, x] > 0:  # Check if there is an object
+                    occupancy_map[z:, x] = 0  # Mark this and deeper as occupied
+                    break  # Move to the next column after marking the first object
+
+        return occupancy_map
+
 
     def display_filtered_3d_depth_map(self):
         
@@ -103,6 +116,26 @@ class DepthPostProcessor(Depth):
             plt.pause(0.1)  # Short pause to allow the plot to update
         plt.close()
 
+    def display_2d_top_down_occupancy_map(self):
+        plt.figure(figsize=(10, 7))
+
+        left_images = super().sort_numerically(glob.glob(join(self.left_images_dir, '*.png')))
+        right_images = super().sort_numerically(glob.glob(join(self.right_images_dir, '*.png')))
+
+        for left_img_path, right_img_path in zip(left_images, right_images):
+            disparity = super().process_images(left_img_path, right_img_path)
+            depth = super().normalize_and_reverse_depth(disparity)
+            filtered_depth = self.filter_isolated_points(depth)
+            occupancy_map = self.calculate_2d_top_down_occupancy_map(filtered_depth)
+
+            plt.imshow(occupancy_map, cmap='gray', aspect='auto')
+            plt.title('2D Top-Down Occupancy Map')
+            plt.xlabel('X axis')
+            plt.ylabel('Depth')
+            plt.pause(0.1)  # Display each frame for 0.1 seconds
+
+        plt.close()
+
 
 if __name__ == '__main__':
     
@@ -111,7 +144,7 @@ if __name__ == '__main__':
         left_images_dir = 'output/L'
         right_images_dir = 'output/R'
         depth_post_processor = DepthPostProcessor(calib_dir, left_images_dir, right_images_dir)
-        depth_post_processor.display_filtered_3d_depth_map()
+        depth_post_processor.display_2d_top_down_occupancy_map()
 
     
     main()
