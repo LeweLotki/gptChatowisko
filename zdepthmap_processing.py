@@ -164,6 +164,21 @@ class DepthPostProcessor(Depth):
         
         return closed_depth_map_binary
 
+    def generate_occupancy_grid(self):
+        
+        left_images = super().sort_numerically(glob.glob(join(self.left_images_dir, '*.png')))
+        right_images = super().sort_numerically(glob.glob(join(self.right_images_dir, '*.png')))
+
+        for left_img_path, right_img_path in zip(left_images, right_images):
+            disparity = super().process_images(left_img_path, right_img_path)
+            depth = super().normalize_and_reverse_depth(disparity)
+            filtered_depth = self.filter_isolated_points(depth)
+            limited_depth = self.filter_floor_points(filtered_depth)
+            xz_projection = self.project_to_xz_plane(limited_depth)
+            occupancy_map = self.fill_unknown_space(xz_projection)
+            closed_occupancy_map = self.closing_operation(occupancy_map)
+            
+            yield closed_occupancy_map
     
     def display_xz_projection(self):
         
