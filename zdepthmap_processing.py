@@ -6,9 +6,17 @@ import glob
 from os.path import join
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.preprocessing import StandardScaler
+from cv2 import (
+    getStructuringElement,
+    dilate,
+    MORPH_RECT,
+    erode
+)
 
 class DepthPostProcessor(Depth):
+    
     def __init__(self, calib_dir, left_images_dir, right_images_dir):
+        
         super().__init__(calib_dir, left_images_dir, right_images_dir)
 
     def filter_isolated_points(self, depth_map):
@@ -139,7 +147,24 @@ class DepthPostProcessor(Depth):
                     break  # Once the first 1 is found and action is taken, stop checking this column
 
         return filled_map
+    
+    def closing_operation(self, occupancy_map):
         
+        kernel_erosion_size = (10, 5)
+        kernel_for_erosion = getStructuringElement(MORPH_RECT, kernel_erosion_size)  # 1 column wide, 3 rows tall
+
+        kernel_dilation_size = (3, 2)
+        kernel_for_dilation= getStructuringElement(MORPH_RECT, kernel_dilation_size)
+
+        # Apply the closing operation: dilation followed by erosion
+        closed_depth_map = erode(occupancy_map, kernel_for_erosion, iterations=1)
+        closed_depth_map = dilate(closed_depth_map, kernel_for_dilation, iterations=1)
+        # Convert back to binary format for consistency with previous examples
+        closed_depth_map_binary = (closed_depth_map > 0).astype(np.uint8)
+        
+        return closed_depth_map_binary
+
+    
     def display_xz_projection(self):
         
         plt.figure(figsize=(10, 7))
@@ -154,12 +179,13 @@ class DepthPostProcessor(Depth):
             limited_depth = self.filter_floor_points(filtered_depth)
             xz_projection = self.project_to_xz_plane(limited_depth)
             occupancy_map = self.fill_unknown_space(xz_projection)
+            closed_occupancy_map = self.closing_operation(occupancy_map)
 
-            plt.imshow(occupancy_map, cmap='gray')
+            plt.imshow(closed_occupancy_map, cmap='gray')
             plt.title('XZ Plane Projection')
             plt.xlabel('X axis')
             plt.ylabel('Z axis (Depth)')
-            plt.pause(1)  # Display each frame for 0.1 seconds
+            plt.pause(1/24)  # Display each frame for 0.1 seconds
 
         plt.close()
 
