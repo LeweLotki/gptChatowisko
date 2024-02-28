@@ -62,20 +62,6 @@ class DepthPostProcessor(Depth):
 
         return new_depth_map
 
-    def calculate_2d_top_down_occupancy_map(self, depth):
-        # Assume depth is already filtered to include only floor-relevant points
-        # Initialize the 2D occupancy map with all free spaces
-        occupancy_map = np.full((depth.shape[0], depth.shape[1]), 255, dtype=np.uint8)
-
-        for x in range(depth.shape[1]):  # Iterate through each column (X-axis)
-            for z in range(depth.shape[0]):  # Iterate from the top of the column downwards
-                if depth[z, x] > 0:  # Check if there is an object
-                    occupancy_map[z:, x] = 0  # Mark this and deeper as occupied
-                    break  # Move to the next column after marking the first object
-
-        return occupancy_map
-
-
     def display_filtered_3d_depth_map(self):
         
         fig = plt.figure(figsize=(10, 7))
@@ -113,10 +99,58 @@ class DepthPostProcessor(Depth):
             max_depth = depth[mask].max() if mask.any() else 1  # Use the maximum depth if any, otherwise 1
             ax.set_zlim([0, max_depth])
 
-            plt.pause(0.1)  # Short pause to allow the plot to update
+            plt.pause(1)  # Short pause to allow the plot to update
         plt.close()
 
-    def display_2d_top_down_occupancy_map(self):
+    def compute_cdf(self, depth_values):
+        """
+        Compute the cumulative distribution function for the depth values.
+        """
+        histogram, bin_edges = np.histogram(depth_values, bins=int(1e4), range=(0, 1), density=True)
+        cdf = np.cumsum(histogram) * np.diff(bin_edges)
+        return cdf, bin_edges
+
+    def map_depth_to_z_index(self, depth_value, cdf, bin_edges, z_resolution):
+        """
+        Map a depth value to a Z index using the CDF.
+        """
+        # Find the bin index for the given depth value
+        bin_index = np.digitize(depth_value, bin_edges, right=True)
+        # Use the bin index to find the corresponding percentile in the CDF
+        percentile = cdf[bin_index-1] if bin_index > 0 else 0
+        # Map the percentile to a Z index
+        z_index = int(percentile * (z_resolution - 1))
+        return z_index
+
+    def project_to_xz_plane(self, depth_map):
+        """
+        Project the depth map to the XZ plane.
+        """
+        z_resolution = depth_map.shape[0]
+        # Flatten the depth map and get non-zero depth values
+        h, w = depth_map.shape
+        X, Z = np.meshgrid(np.arange(w), np.arange(h))
+        non_zero_mask = depth_map > 0
+
+        # Project onto XZ plane
+        X = X[non_zero_mask]
+        Z = depth_map[non_zero_mask]
+
+        # Map depth values to Z indices
+        Z_indices = np.round(Z * (z_resolution - 1)).astype(int)
+
+        # Initialize the new matrix with dimensions X size by Z(depth) size
+        xz_projection = np.zeros((w, z_resolution))
+
+        # Fill the projection matrix
+        for i in range(len(X)):
+            xz_projection[X[i], Z_indices[i]] = 1
+
+        # Return the transposed matrix to match the orientation
+        return (xz_projection.T)[::-1]
+
+    def display_xz_projection(self):
+        
         plt.figure(figsize=(10, 7))
 
         left_images = super().sort_numerically(glob.glob(join(self.left_images_dir, '*.png')))
@@ -126,13 +160,16 @@ class DepthPostProcessor(Depth):
             disparity = super().process_images(left_img_path, right_img_path)
             depth = super().normalize_and_reverse_depth(disparity)
             filtered_depth = self.filter_isolated_points(depth)
-            occupancy_map = self.calculate_2d_top_down_occupancy_map(filtered_depth)
+            limited_depth = self.filter_floor_points(filtered_depth)
+            print(f'limited depth: {np.max(limited_depth)} \n')
+            print(f'depth shape: {limited_depth.shape} \n')
+            xz_projection = self.project_to_xz_plane(limited_depth)
 
-            plt.imshow(occupancy_map, cmap='gray', aspect='auto')
-            plt.title('2D Top-Down Occupancy Map')
+            plt.imshow(xz_projection, cmap='gray')
+            plt.title('XZ Plane Projection')
             plt.xlabel('X axis')
-            plt.ylabel('Depth')
-            plt.pause(0.1)  # Display each frame for 0.1 seconds
+            plt.ylabel('Z axis (Depth)')
+            plt.pause(1)  # Display each frame for 0.1 seconds
 
         plt.close()
 
@@ -144,7 +181,8 @@ if __name__ == '__main__':
         left_images_dir = 'output/L'
         right_images_dir = 'output/R'
         depth_post_processor = DepthPostProcessor(calib_dir, left_images_dir, right_images_dir)
-        depth_post_processor.display_2d_top_down_occupancy_map()
+        depth_post_processor.display_xz_projection()
+        # depth_post_processor.display_filtered_3d_depth_map()
 
     
     main()
