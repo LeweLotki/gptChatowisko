@@ -102,26 +102,6 @@ class DepthPostProcessor(Depth):
             plt.pause(1)  # Short pause to allow the plot to update
         plt.close()
 
-    def compute_cdf(self, depth_values):
-        """
-        Compute the cumulative distribution function for the depth values.
-        """
-        histogram, bin_edges = np.histogram(depth_values, bins=int(1e4), range=(0, 1), density=True)
-        cdf = np.cumsum(histogram) * np.diff(bin_edges)
-        return cdf, bin_edges
-
-    def map_depth_to_z_index(self, depth_value, cdf, bin_edges, z_resolution):
-        """
-        Map a depth value to a Z index using the CDF.
-        """
-        # Find the bin index for the given depth value
-        bin_index = np.digitize(depth_value, bin_edges, right=True)
-        # Use the bin index to find the corresponding percentile in the CDF
-        percentile = cdf[bin_index-1] if bin_index > 0 else 0
-        # Map the percentile to a Z index
-        z_index = int(percentile * (z_resolution - 1))
-        return z_index
-
     def project_to_xz_plane(self, depth_map):
         """
         Project the depth map to the XZ plane.
@@ -147,8 +127,19 @@ class DepthPostProcessor(Depth):
             xz_projection[X[i], Z_indices[i]] = 1
 
         # Return the transposed matrix to match the orientation
-        return (xz_projection.T)[::-1]
+        return (xz_projection.T)[::-1] != 1
 
+    def fill_unknown_space(self, occupancy_map):
+        
+        filled_map = np.ones(occupancy_map.shape)
+        for col in range(occupancy_map.shape[1]):  # Iterate through each column
+            for row in reversed(range(occupancy_map.shape[0])):  # Start from the bottom of the column
+                if occupancy_map[row, col] == 0:  # If a 1 is found
+                    filled_map[:row, col] = 0  # Set all rows above this row in the column to 1
+                    break  # Once the first 1 is found and action is taken, stop checking this column
+
+        return filled_map
+        
     def display_xz_projection(self):
         
         plt.figure(figsize=(10, 7))
@@ -161,11 +152,10 @@ class DepthPostProcessor(Depth):
             depth = super().normalize_and_reverse_depth(disparity)
             filtered_depth = self.filter_isolated_points(depth)
             limited_depth = self.filter_floor_points(filtered_depth)
-            print(f'limited depth: {np.max(limited_depth)} \n')
-            print(f'depth shape: {limited_depth.shape} \n')
             xz_projection = self.project_to_xz_plane(limited_depth)
+            occupancy_map = self.fill_unknown_space(xz_projection)
 
-            plt.imshow(xz_projection, cmap='gray')
+            plt.imshow(occupancy_map, cmap='gray')
             plt.title('XZ Plane Projection')
             plt.xlabel('X axis')
             plt.ylabel('Z axis (Depth)')
