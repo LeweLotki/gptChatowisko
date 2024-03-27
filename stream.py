@@ -35,6 +35,21 @@ class Stream:
 
             print('Fatal error: Incorrect argument mode, does not match any defined modes.')
 
+    def get_single_frame(self) -> tuple():
+
+        ret, frame = self.cap.read()
+        
+        if not ret: return (None, None)
+
+        (
+            left_image,
+            right_image
+        ) = self.__subdivide_camera_image(frame)                
+
+        return (left_image, right_image)
+       
+        
+
     def __save_display_mode(self, frame_limit=None):
 
         self.__create_output_dir()

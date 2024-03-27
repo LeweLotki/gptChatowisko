@@ -5,6 +5,7 @@ from os.path import join, basename
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import re
+from stream import Stream
 
 class Depth:
     def __init__(self, calib_dir, left_images_dir, right_images_dir):
@@ -12,6 +13,7 @@ class Depth:
         self.left_images_dir = left_images_dir
         self.right_images_dir = right_images_dir
         self.calib_data = self.load_calibration_parameters()
+        self.stream = Stream()
 
     def load_calibration_parameters(self):
         cameraMatrixL = np.loadtxt(join(self.calib_dir, 'cameraMatrixL.txt'), dtype=np.float64)
@@ -25,9 +27,15 @@ class Depth:
         return cameraMatrixL, distL, cameraMatrixR, distR, R, T, Q
 
     def process_images(self, left_img_path, right_img_path):
+        # TODO
         cameraMatrixL, distL, cameraMatrixR, distR, _, _, Q = self.calib_data
-        imgL = cv.imread(left_img_path, cv.IMREAD_GRAYSCALE)
-        imgR = cv.imread(right_img_path, cv.IMREAD_GRAYSCALE)
+        # imgL = cv.imread(left_img_path, cv.IMREAD_GRAYSCALE)
+        # imgR = cv.imread(right_img_path, cv.IMREAD_GRAYSCALE)
+        (imgL, imgR) = self.stream.get_single_frame()
+        if imgL is None:
+            print('Fatal error. Empty frame.')
+        imgL = cv.cvtColor(imgL, cv.IMREAD_GRAYSCALE)
+        imgR = cv.cvtColor(imgR, cv.IMREAD_GRAYSCALE)
         h, w = imgL.shape[:2]
         left_map_x, left_map_y = cv.initUndistortRectifyMap(cameraMatrixL, distL, None, cameraMatrixL, (w, h), cv.CV_32FC1)
         right_map_x, right_map_y = cv.initUndistortRectifyMap(cameraMatrixR, distR, None, cameraMatrixR, (w, h), cv.CV_32FC1)
