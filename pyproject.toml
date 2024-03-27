@@ -16,6 +16,7 @@ matplotlib = "^3.8.3"
 pathfinding = "^1.0.9"
 scikit-learn = "^1.4.1.post1"
 scikit-image = "^0.22.0"
+ypstruct = "^0.0.2"
 
 
 [build-system]
