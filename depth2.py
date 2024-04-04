@@ -12,6 +12,11 @@ class Depth:
         self.left_images_dir = left_images_dir
         self.right_images_dir = right_images_dir
         self.calib_data = self.load_calibration_parameters()
+        
+        # self.process_images()
+        # self.wls()
+        # self.normalize_and_reverse_depth()
+
 
     def load_calibration_parameters(self):
         cameraMatrixL = np.loadtxt(join(self.calib_dir, 'cameraMatrixL.txt'), dtype=np.float64)
@@ -24,7 +29,7 @@ class Depth:
 
         return cameraMatrixL, distL, cameraMatrixR, distR, R, T, Q
    
-    """
+     
     def process_images(self, left_img_path, right_img_path):
         cameraMatrixL, distL, cameraMatrixR, distR, _, _, Q = self.calib_data
         imgL = cv.imread(left_img_path, cv.IMREAD_GRAYSCALE)
@@ -34,69 +39,28 @@ class Depth:
         right_map_x, right_map_y = cv.initUndistortRectifyMap(cameraMatrixR, distR, None, cameraMatrixR, (w, h), cv.CV_32FC1)
         imgL_remapped = cv.remap(imgL, left_map_x, left_map_y, cv.INTER_LINEAR)
         imgR_remapped = cv.remap(imgR, right_map_x, right_map_y, cv.INTER_LINEAR)
+        stereo = cv.StereoSGBM_create(minDisparity=0, numDisparities=16*6, blockSize=5, P1=8 * 3 * 5**2, P2=32 * 3 * 5**2, disp12MaxDiff=1, uniquenessRatio=15, speckleWindowSize=0, speckleRange=2, preFilterCap=63, mode=cv.STEREO_SGBM_MODE_SGBM_3WAY)
+        disparity = stereo.compute(imgL_remapped, imgR_remapped).astype(np.float32) / 16.0
+        return stereo, disparity, imgR, imgL
+    
+    def wls(disparity, stereo, imgL, imgR):
+        wsize=31
+        max_disp = 128
+        sigma = 1.5
+        lmbda = 8000.0
+        left_matcher = cv.StereoBM_create(max_disp, wsize)
+        right_matcher = cv.ximgproc.createRightMatcher(left_matcher)
+        left_disp = left_matcher.compute(imgL,imgR)
+        right_disp = right_matcher.compute(imgR,imgL)
+
+        # Now create DisparityWLSFilter
+        wls_filter = cv.ximgproc.createDisparityWLSFilter(left_matcher)
+        wls_filter.setLambda(lmbda)
+        wls_filter.setSigmaColor(sigma)
+        filtered_disp = wls_filter.filter(left_disp, imgL, disparity_map_right=right_disp)
+        
+        return filtered_disp
        
-        win_size = 5
-        min_disp = 0
-        max_disp = 9
-        num_disp = 16*2 # Needs to be divisible by 16
-        stereo = cv.StereoSGBM_create(
-        minDisparity=min_disp,
-        numDisparities=num_disp,
-        blockSize=5,
-        uniquenessRatio=5,
-        speckleWindowSize=5,
-        speckleRange=5,
-        disp12MaxDiff=2,
-        P1=8 * 3 * win_size ** 2,
-        P2=32 * 3 * win_size ** 2,
-)
-
-        disparity_SGBM = stereo.compute(imgL_remapped, imgR_remapped)
-        wls = cv.ximgproc_DisparityWLSFilter(stereo)
-        filtered_disparity_map = wls.filter(disparity_SGBM, stereo)
-
-        # stereo = cv.StereoSGBM_create(minDisparity=0, numDisparities=16*6, blockSize=5, P1=8 * 3 * 5**2, P2=32 * 3 * 5**2, disp12MaxDiff=1, uniquenessRatio=15, speckleWindowSize=0, speckleRange=2, preFilterCap=63, mode=cv.STEREO_SGBM_MODE_SGBM_3WAY)
-        # wls = cv.ximgproc_DisparityWLSFilter(stereo)
-        # disparity = stereo.compute(imgL_remapped, imgR_remapped).astype(np.float32) / 16.0
-               
-        # filtered_disparity_map = wls.filter(disparity, stereo)
-               
-        return filtered_disparity_map
-
-        """
-    
-    def process_images(self, left_img_path, right_img_path):
-        cameraMatrixL, distL, cameraMatrixR, distR, _, _, Q = self.calib_data
-        imgL = cv.imread(left_img_path, cv.IMREAD_GRAYSCALE)
-        imgR = cv.imread(right_img_path, cv.IMREAD_GRAYSCALE)
-        h, w = imgL.shape[:2]
-        left_map_x, left_map_y = cv.initUndistortRectifyMap(cameraMatrixL, distL, None, cameraMatrixL, (w, h), cv.CV_32FC1)
-        right_map_x, right_map_y = cv.initUndistortRectifyMap(cameraMatrixR, distR, None, cameraMatrixR, (w, h), cv.CV_32FC1)
-        imgL_remapped = cv.remap(imgL, left_map_x, left_map_y, cv.INTER_LINEAR)
-        imgR_remapped = cv.remap(imgR, right_map_x, right_map_y, cv.INTER_LINEAR)
-    
-        win_size = 5
-        min_disp = 0
-        max_disp = 9
-        num_disp = 16*2 # Needs to be divisible by 16
-        stereo = cv.StereoSGBM_create(
-        minDisparity=min_disp,
-        numDisparities=num_disp,
-        blockSize=5,
-        uniquenessRatio=5,
-        speckleWindowSize=5,
-        speckleRange=5,
-        disp12MaxDiff=2,
-        P1=8 * 3 * win_size ** 2,
-        P2=32 * 3 * win_size ** 2,
-    )
-
-        disparity_SGBM = stereo.compute(imgL_remapped, imgR)
-        wls = cv.ximgproc.DisparityWLSFilter(stereo, imgL)
-        filtered_disparity_map = wls.filter(disparity_SGBM, imgL_remapped, None, disparity_map_right=imgR_remapped)
-
-        return filtered_disparity_map
-
 
     def normalize_and_reverse_depth(self, depth_map):
         depth_valid = depth_map[depth_map > 0]
@@ -115,10 +79,11 @@ class Depth:
         left_images = self.sort_numerically(glob.glob(join(self.left_images_dir, '*.png')))
         right_images = self.sort_numerically(glob.glob(join(self.right_images_dir, '*.png')))
 
+
         for left_img_path, right_img_path in zip(left_images, right_images):
-            # disparity = self.process_images(left_img_path, right_img_path)
-            filtered_disparity_map = self.process_images(left_img_path, right_img_path)
-            depth = self.normalize_and_reverse_depth(filtered_disparity_map)
+            _, disparity, _, _ = self.process_images(left_img_path, right_img_path)  # Process images and retrieve disparity map
+            filtered_disp = self.wls(disparity, stereo, imgL, imgR)  # Apply WLS filter to the disparity map czemu nie mam dostępu do stereo????????????????????????
+            depth = self.normalize_and_reverse_depth(filtered_disp)  # Normalize and reverse the depth map
             h, w = depth.shape
             X, Y = np.meshgrid(np.arange(w), np.arange(h))
             X, Y, depth = X.flatten(), Y.flatten(), depth.flatten()
@@ -131,7 +96,8 @@ class Depth:
             ax.set_zlabel('Depth (Normalized and Reversed)')
             ax.view_init(elev=287, azim=270)
             plt.pause(0.1)
-        plt.close()
+        plt.close()     
+
 
 if __name__ == '__main__':
     
