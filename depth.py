@@ -29,11 +29,10 @@ class Depth:
     def process_images(self, left_img_path, right_img_path):
         # TODO
         cameraMatrixL, distL, cameraMatrixR, distR, _, _, Q = self.calib_data
-        # imgL = cv.imread(left_img_path, cv.IMREAD_GRAYSCALE)
-        # imgR = cv.imread(right_img_path, cv.IMREAD_GRAYSCALE)
         (imgL, imgR) = self.stream.get_single_frame()
         if imgL is None:
             print('Fatal error. Empty frame.')
+       
         imgL = cv.cvtColor(imgL, cv.IMREAD_GRAYSCALE)
         imgR = cv.cvtColor(imgR, cv.IMREAD_GRAYSCALE)
         h, w = imgL.shape[:2]
@@ -41,7 +40,8 @@ class Depth:
         right_map_x, right_map_y = cv.initUndistortRectifyMap(cameraMatrixR, distR, None, cameraMatrixR, (w, h), cv.CV_32FC1)
         imgL_remapped = cv.remap(imgL, left_map_x, left_map_y, cv.INTER_LINEAR)
         imgR_remapped = cv.remap(imgR, right_map_x, right_map_y, cv.INTER_LINEAR)
-        stereo = cv.StereoSGBM_create(minDisparity=0, numDisparities=16*6, blockSize=5, P1=8 * 3 * 5**2, P2=32 * 3 * 5**2, disp12MaxDiff=1, uniquenessRatio=15, speckleWindowSize=0, speckleRange=2, preFilterCap=63, mode=cv.STEREO_SGBM_MODE_SGBM_3WAY)
+        stereo = cv.StereoSGBM_create(minDisparity=0, numDisparities=16*6,
+        blockSize=5, P1=8 * 3 * 5**2, P2=32 * 3 * 5**2, disp12MaxDiff=1, uniquenessRatio=15, speckleWindowSize=0, speckleRange=2, preFilterCap=63, mode=cv.STEREO_SGBM_MODE_SGBM_3WAY)
         disparity = stereo.compute(imgL_remapped, imgR_remapped).astype(np.float32) / 16.0
         return disparity
 

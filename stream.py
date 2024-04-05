@@ -35,11 +35,18 @@ class Stream:
 
             print('Fatal error: Incorrect argument mode, does not match any defined modes.')
 
-    def get_single_frame(self) -> tuple():
+    def get_single_frame(self, recursion_depth=0) -> (np.array, np.array):
 
         ret, frame = self.cap.read()
+        max_recursion_depth = 10
         
         if not ret: return (None, None)
+        if recursion_depth > max_recursion_depth: return (None, None)
+        if (np.min(frame[0,:,0]) == np.max(frame[0,:,0])):
+
+           recursion_depth += 1
+           (left_image, right_image) = self.get_single_frame(recursion_depth=recursion_depth) 
+           return (left_image, right_image)
 
         (
             left_image,
@@ -48,8 +55,6 @@ class Stream:
 
         return (left_image, right_image)
        
-        
-
     def __save_display_mode(self, frame_limit=None):
 
         self.__create_output_dir()
