@@ -4,4 +4,4 @@ This repository was created in order to prototype processing of data from stereo
  This program is able to create three dimensional points cloud of data based on calculated distortion from cameras and then calculate optimal
  trajectory for mobile robot.
 <br>
-This approche is currently refactoring to C++, as it proves itslef to be effective.
+This approche is currently refactoring to C++(or not), as it proves itslef to be effective.
