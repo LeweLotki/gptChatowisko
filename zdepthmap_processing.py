@@ -14,11 +14,32 @@ from cv2 import (
 )
 
 class DepthPostProcessor(Depth):
-    
+    eps = 0.05
+    min_samples = 18
+    taken_points_per = 0.15
+
     def __init__(self, calib_dir, left_images_dir, right_images_dir):
         
         super().__init__(calib_dir, left_images_dir, right_images_dir)
 
+    
+    def display_photo(self):
+        
+        left_images = super().sort_numerically(glob.glob(join(self.left_images_dir, '*.png')))
+        right_images = super().sort_numerically(glob.glob(join(self.right_images_dir, '*.png')))
+
+        for left_img_path, right_img_path in zip(left_images, right_images):
+            disparity = super().process_images(left_img_path, right_img_path)
+            depth = super().normalize_and_reverse_depth(disparity)
+            filtered_depth = self.filter_isolated_points(depth)
+            floor_filtered_depth = self.filter_floor_points(filtered_depth)  # Apply floor level filtering
+
+            h, w = floor_filtered_depth.shape
+            X, Y = np.meshgrid(np.arange(w), np.arange(h))
+            X, Y, depth = X.flatten(), Y.flatten(), floor_filtered_depth.flatten()
+            print(depth)
+    
+        
     def filter_isolated_points(self, depth_map):
         
         h, w = depth_map.shape
@@ -30,15 +51,16 @@ class DepthPostProcessor(Depth):
         
         # Randomly select 10% of the points to reduce computational load
         num_points = points_filtered.shape[0]
-        indices = np.random.choice(num_points, size=int(num_points * 0.15), replace=False)
+        #taken_points_per = 0.15
+        indices = np.random.choice(num_points, size=int(num_points * self.taken_points_per), replace=False)
         points_sampled = points_filtered[indices]
         
         # Normalize X, Y, and depth values
         scaler = StandardScaler()
         points_normalized = scaler.fit_transform(points_sampled)
-        
-        # Apply DBSCAN clustering on normalized points
-        clustering = DBSCAN(eps=0.05, min_samples=18).fit(points_normalized)
+        #eps = 0.05
+        #min_samples = 18
+        clustering = DBSCAN(eps=self.eps, min_samples=self.min_samples).fit(points_normalized)
         labels = clustering.labels_
         
         # Reconstruct depth map with points that belong to clusters (excluding noise)
@@ -212,8 +234,9 @@ if __name__ == '__main__':
         left_images_dir = 'output/L'
         right_images_dir = 'output/R'
         depth_post_processor = DepthPostProcessor(calib_dir, left_images_dir, right_images_dir)
-        depth_post_processor.display_xz_projection()
+        # depth_post_processor.display_xz_projection()
         # depth_post_processor.display_filtered_3d_depth_map()
+        depth_post_processor.display_photo()
 
     
     main()
