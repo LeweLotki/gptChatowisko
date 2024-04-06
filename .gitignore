@@ -1,3 +1,8 @@
 *.lock
 __pychache__/*
 __pycache__
+Lib/
+Scripts/
+jak_odpalic_kod_na_laptopie.txt
+pyvenv.cfg
+data.csv

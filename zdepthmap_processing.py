@@ -3,9 +3,14 @@ import numpy as np
 from sklearn.cluster import DBSCAN
 import matplotlib.pyplot as plt
 import glob
+from sklearn import datasets, cluster
+import os
+import scipy
 from os.path import join
+import pandas as pd
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import AffinityPropagation
 from cv2 import (
     getStructuringElement,
     dilate,
@@ -17,28 +22,71 @@ class DepthPostProcessor(Depth):
     eps = 0.05
     min_samples = 18
     taken_points_per = 0.15
+    #count_nonzero = 0
 
     def __init__(self, calib_dir, left_images_dir, right_images_dir):
         
         super().__init__(calib_dir, left_images_dir, right_images_dir)
-
+        self.count_nonzero = 0
+        self.depth = 0
+        self.entropy = 0
+        self.kns = 0
+        self.affnityprop = 0
     
-    def display_photo(self):
+    def update_csv(self):
+        filename = 'data.csv'
+        #if os.path.exists(filename):
+           # os.remove(filename)
         
+        data = pd.DataFrame({
+                'eps': [self.eps],
+                'taken_points_per': [self.taken_points_per],
+                'min_samples': [self.min_samples],
+                'count': [self.count_nonzero],
+                'entropy': [self.entropy],
+                'kns': [self.kns],
+                'affinity_propagation':[ self.affnityprop]
+                                    
+        })
+        
+        
+        df = pd.DataFrame(data)
+        
+        if os.path.exists("data.csv"):
+            df.to_csv(filename, index=True, mode='a',header=False)
+        else:
+            df.to_csv(filename, index=True, mode='a',header=True)
+
+    def display_photo(self, eps, min_samples, taken_points_per):
+        
+        # self.eps = eps
+        # self.min_samples = min_samples
+        # self.taken_points_per = taken_points_per
+        
+
         left_images = super().sort_numerically(glob.glob(join(self.left_images_dir, '*.png')))
         right_images = super().sort_numerically(glob.glob(join(self.right_images_dir, '*.png')))
+        left_images = left_images[20:22]
+        right_images = right_images[20:22]
 
+        #print(left_images)
         for left_img_path, right_img_path in zip(left_images, right_images):
             disparity = super().process_images(left_img_path, right_img_path)
             depth = super().normalize_and_reverse_depth(disparity)
             filtered_depth = self.filter_isolated_points(depth)
             floor_filtered_depth = self.filter_floor_points(filtered_depth)  # Apply floor level filtering
+            #print(floor_filtered_depth.shape)
+            #print(type(filtered_depth))
+            
+            self.count_nonzero = np.count_nonzero(filtered_depth)
+            self.entropy = scipy.stats.entropy(filtered_depth, axis=None)# ,base=None)
+            self.kns = scipy.stats.kstat(filtered_depth)
+            #ap = AffinityPropagation(random_state=5).fit(filtered_depth)
+            ap = cluster.FeatureAgglomeration(n_clusters=None)
+            self.affnityprop = ap
+            #print(self.kns)
 
-            h, w = floor_filtered_depth.shape
-            X, Y = np.meshgrid(np.arange(w), np.arange(h))
-            X, Y, depth = X.flatten(), Y.flatten(), floor_filtered_depth.flatten()
-            print(depth)
-    
+            self.update_csv()
         
     def filter_isolated_points(self, depth_map):
         
