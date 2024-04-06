@@ -1,3 +1,4 @@
 *.lock
 __pychache__/*
 __pycache__
+stream_frames/

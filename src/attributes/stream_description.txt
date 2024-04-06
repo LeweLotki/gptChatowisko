@@ -1,0 +1,1 @@
+This module is for streaming and display images from cameras and saving it.

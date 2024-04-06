@@ -1,0 +1,1 @@
+This program has been written in order to conduct path planning using depth map calculated using stereovision camera.
