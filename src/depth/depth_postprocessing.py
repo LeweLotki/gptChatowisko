@@ -1,4 +1,4 @@
-from depth import Depth
+from depth.depth import Depth
 import numpy as np
 from sklearn.cluster import DBSCAN
 import matplotlib.pyplot as plt
@@ -15,9 +15,9 @@ from cv2 import (
 
 class DepthPostProcessor(Depth):
     
-    def __init__(self, calib_dir, left_images_dir, right_images_dir):
+    def __init__(self, calib_dir):
         
-        super().__init__(calib_dir, left_images_dir, right_images_dir)
+        super().__init__(calib_dir)
 
     def filter_isolated_points(self, depth_map):
         
@@ -75,18 +75,18 @@ class DepthPostProcessor(Depth):
         fig = plt.figure(figsize=(10, 7))
         ax = fig.add_subplot(111, projection='3d')
 
-        left_images = super().sort_numerically(glob.glob(join(self.left_images_dir, '*.png')))
-        right_images = super().sort_numerically(glob.glob(join(self.right_images_dir, '*.png')))
+        while True:
 
-        for left_img_path, right_img_path in zip(left_images, right_images):
-            disparity = super().process_images(left_img_path, right_img_path)
+            disparity = super().process_images()
             depth = super().normalize_and_reverse_depth(disparity)
             filtered_depth = self.filter_isolated_points(depth)
-            floor_filtered_depth = self.filter_floor_points(filtered_depth)  # Apply floor level filtering
+            # floor_filtered_depth = self.filter_floor_points(filtered_depth)  # Apply floor level filtering
 
-            h, w = floor_filtered_depth.shape
+            # h, w = floor_filtered_depth.shape
+            h, w = filtered_depth.shape
             X, Y = np.meshgrid(np.arange(w), np.arange(h))
-            X, Y, depth = X.flatten(), Y.flatten(), floor_filtered_depth.flatten()
+            # X, Y, depth = X.flatten(), Y.flatten(), floor_filtered_depth.flatten()
+            X, Y, depth = X.flatten(), Y.flatten(), filtered_depth.flatten()
 
             mask = depth > 0
             ax.clear()
@@ -107,7 +107,8 @@ class DepthPostProcessor(Depth):
             max_depth = depth[mask].max() if mask.any() else 1  # Use the maximum depth if any, otherwise 1
             ax.set_zlim([0, max_depth])
 
-            plt.pause(1)  # Short pause to allow the plot to update
+            plt.pause(0.01)  # Short pause to allow the plot to update
+
         plt.close()
 
     def project_to_xz_plane(self, depth_map):
@@ -166,11 +167,9 @@ class DepthPostProcessor(Depth):
 
     def generate_occupancy_grid(self):
         
-        left_images = super().sort_numerically(glob.glob(join(self.left_images_dir, '*.png')))
-        right_images = super().sort_numerically(glob.glob(join(self.right_images_dir, '*.png')))
+        while True:
 
-        for left_img_path, right_img_path in zip(left_images, right_images):
-            disparity = super().process_images(left_img_path, right_img_path)
+            disparity = super().process_images()
             depth = super().normalize_and_reverse_depth(disparity)
             filtered_depth = self.filter_isolated_points(depth)
             limited_depth = self.filter_floor_points(filtered_depth)
@@ -184,15 +183,14 @@ class DepthPostProcessor(Depth):
         
         plt.figure(figsize=(10, 7))
 
-        left_images = super().sort_numerically(glob.glob(join(self.left_images_dir, '*.png')))
-        right_images = super().sort_numerically(glob.glob(join(self.right_images_dir, '*.png')))
+        while True:
 
-        for left_img_path, right_img_path in zip(left_images, right_images):
-            disparity = super().process_images(left_img_path, right_img_path)
+            disparity = super().process_images()
             depth = super().normalize_and_reverse_depth(disparity)
             filtered_depth = self.filter_isolated_points(depth)
             limited_depth = self.filter_floor_points(filtered_depth)
             xz_projection = self.project_to_xz_plane(limited_depth)
+            # xz_projection = self.project_to_xz_plane(filtered_depth)
             occupancy_map = self.fill_unknown_space(xz_projection)
             closed_occupancy_map = self.closing_operation(occupancy_map)
 
@@ -200,7 +198,7 @@ class DepthPostProcessor(Depth):
             plt.title('XZ Plane Projection')
             plt.xlabel('X axis')
             plt.ylabel('Z axis (Depth)')
-            plt.pause(1/24)  # Display each frame for 0.1 seconds
+            plt.pause(0.01)  # Display each frame for 0.1 seconds
 
         plt.close()
 

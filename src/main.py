@@ -7,7 +7,11 @@ from os import listdir
 from os.path import basename
 
 from stream.stream import Stream
+
 from depth.depth import Depth
+from depth.depth_postprocessing import DepthPostProcessor
+
+from path.path_planning import PathPlanner
 
 def main():
 
@@ -55,6 +59,11 @@ def get_parser():
 
     stereo_parser = parser.add_argument_group('Stereo Mode')
     stereo_parser.add_argument('-d', '--stereo', action='store_true', help=stereo_description_path)
+    stereo_parser.add_argument('-dp', '--stereo_postprocessing', action='store_true', help=stereo_description_path)
+    stereo_parser.add_argument('-og', '--occupancy_grid', action='store_true', help=stereo_description_path)
+
+    path_parser = parser.add_argument_group('Path Mode')
+    path_parser.add_argument('-p', '--path_planning', action='store_true', help=stereo_description_path)
 
     return parser
 
@@ -85,7 +94,24 @@ def select_mode(parser):
         calib_dir = 'calibration_parameters'
         depth_calculator = Depth(calib_dir)
         depth_calculator.display_3d_depth_map()
- 
+
+    elif args.stereo_postprocessing:
+
+        calib_dir = 'calibration_parameters'
+        depth_post_processor = DepthPostProcessor(calib_dir)
+        depth_post_processor.display_filtered_3d_depth_map()
+
+    elif args.occupancy_grid:
+
+        calib_dir = 'calibration_parameters'
+        depth_post_processor = DepthPostProcessor(calib_dir)
+        depth_post_processor.display_xz_projection()
+
+    elif args.path_planning:
+
+        calib_dir = 'calibration_parameters'
+        path_planner = PathPlanner(calib_dir)
+
     else: 
         default_message()
 
