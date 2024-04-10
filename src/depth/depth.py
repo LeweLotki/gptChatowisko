@@ -25,7 +25,7 @@ class Depth:
         return cameraMatrixL, distL, cameraMatrixR, distR, R, T, Q
 
     def process_images(self):
-        # TODO
+
         cameraMatrixL, distL, cameraMatrixR, distR, _, _, Q = self.calib_data
         (imgL, imgR) = self.stream.get_single_frame()
         if imgL is None:
@@ -59,7 +59,7 @@ class Depth:
         ax = fig.add_subplot(111, projection='3d')
 
         while True:
-
+            
             disparity = self.process_images()
             depth = self.normalize_and_reverse_depth(disparity)
             h, w = depth.shape
@@ -73,10 +73,8 @@ class Depth:
             ax.set_ylabel('Y axis')
             ax.set_zlabel('Depth (Normalized and Reversed)')
             ax.view_init(elev=287, azim=270)
-            plt.pause(0.1)
+            plt.pause(0.01)
             
-            if cv.waitKey(1): break
-
         plt.close()
 
 if __name__ == '__main__':
