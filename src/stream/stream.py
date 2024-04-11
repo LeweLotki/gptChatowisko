@@ -13,6 +13,8 @@ class Stream:
     def __init__(self):
 
         self.cap = cv2.VideoCapture(0)
+        #self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 4416)
+        #self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1242)
 
     def run(self, mode:str='display_mode', output_dir=None, frame_limit=int(1e3)):
         

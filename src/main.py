@@ -13,6 +13,8 @@ from depth.depth_postprocessing import DepthPostProcessor
 
 from path.path_planning import PathPlanner
 
+from calibration.calib import Calibration
+
 def main():
 
     parser = get_parser()
@@ -56,6 +58,8 @@ def get_parser():
     stream_parser.add_argument('--ss', nargs='?', const=1000, default=argparse.SUPPRESS, type=int, help="Subflag ss with optional integer. Defaults to 1000 if not provided, or uses the provided value.")
     stream_parser.add_argument('--sd', action='store_true', help="Subflag sd, a boolean flag")
     stream_parser.add_argument('--sv', nargs='?', const=1000, default=argparse.SUPPRESS, type=int, help="Subflag sv with optional integer. Defaults to 1000 if not provided, or uses the provided value.")
+    
+
 
     stereo_parser = parser.add_argument_group('Stereo Mode')
     stereo_parser.add_argument('-d', '--stereo', action='store_true', help=stereo_description_path)
@@ -73,7 +77,9 @@ def select_mode(parser):
     args = parser.parse_args()
 
     if args.calibration: 
-        print('calibration mode')
+        
+        calib = Calibration()
+        calib.run()
         
     elif args.stream:
         stream = Stream()
